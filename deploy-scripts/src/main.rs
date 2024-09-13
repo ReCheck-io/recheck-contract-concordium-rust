@@ -38,7 +38,7 @@ struct App {
         default_value = "https://grpc.testnet.concordium.com:20000",
         help = "V2 API of the Concordium node."
     )]
-    endpoint:  tonic::transport::Endpoint,
+    endpoint: tonic::transport::Endpoint,
     #[clap(
         long = "account",
         help = "Path to the file containing the Concordium account keys exported from the wallet \
@@ -57,7 +57,7 @@ struct App {
 /// Main function: It deploys to chain all wasm modules from the command line
 /// `--module` flags. Write your own custom deployment/initialization script in
 /// this function. An deployment/initialization script example is given in this
-/// function for the `default` smart contract.
+/// function for the `recheck` smart contract.
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let app: App = App::parse();
@@ -99,60 +99,51 @@ async fn main() -> Result<(), Error> {
         }
     }
 
-    // Write your own deployment/initialization script below. An example is given
-    // here.
-
-    // You can easily import a type from the smart contract like so:
-    use default::CustomInputParameter; // Example
-
-    let param = OwnedParameter::from_serial(&CustomInputParameter { num: 42 })?; // Example
-
-    let init_method_name: &str = "init_recheck"; // Example
+    // Initialize the recheck contract
+    let init_method_name: &str = "init_recheck"; // Name of the init function in your contract
 
     let payload = InitContractPayload {
         init_name: OwnedContractName::new(init_method_name.into())?,
         amount: Amount::from_micro_ccd(0),
-        mod_ref: modules_deployed[0],
-        param,
-    }; // Example
+        mod_ref: modules_deployed[0], // Assuming you deploy one module; otherwise, handle multiple.
+        param: OwnedParameter::empty(), // No parameters required for the init function in your case
+    };
 
     let init_result: InitResult = deployer
         .init_contract(payload, None, None)
         .await
-        .context("Failed to initialize the contract.")?; // Example
+        .context("Failed to initialize the contract.")?;
 
-    // Create a successful transaction.
-    // The input parameter to the receive function is in this example a bool.
-    let bytes = contracts_common::to_bytes(&false); // Example
+    // // Example: Create a record using the `createRecord` method
+    // let record_params = CreateRecordParams {
+    //     record_id: "<some_hash_value>",
+    //     trail: "<some_trail_hash>",
+    //     trail_signature: "<some_signature_hash>",
+    // };
 
-    let update_payload = transactions::UpdateContractPayload {
-        amount: Amount::from_ccd(0),
-        address: init_result.contract_address,
-        receive_name: OwnedReceiveName::new_unchecked("recheck.receive".to_string()),
-        message: bytes.try_into()?,
-    }; // Example
+    // let bytes = contracts_common::to_bytes(&record_params)?; // Serialize parameters
 
-    // The transaction costs on Concordium have two components, one is based on the size of the
-    // transaction and the number of signatures, and then there is a
-    // transaction-specific one for executing the transaction (which is estimated with this function).
-    let mut energy = deployer
-        .estimate_energy(update_payload.clone())
-        .await
-        .context("Failed to estimate the energy.")?; // Example
+    // let update_payload = transactions::UpdateContractPayload {
+    //     amount: Amount::from_ccd(0),
+    //     address: init_result.contract_address,
+    //     receive_name: OwnedReceiveName::new_unchecked("recheck.createRecord".to_string()),
+    //     message: bytes.try_into()?,
+    // };
 
-    // We add 100 energy to be safe.
-    energy.energy += 100; // Example
+    // // Estimate energy
+    // let mut energy = deployer
+    //     .estimate_energy(update_payload.clone())
+    //     .await
+    //     .context("Failed to estimate the energy.")?;
 
-    // `GivenEnergy::Add(energy)` is the recommended helper function to handle the transaction cost automatically for the first component
-    // (based on the size of the transaction and the number of signatures).
-    // [GivenEnergy](https://docs.rs/concordium-rust-sdk/latest/concordium_rust_sdk/types/transactions/construct/enum.GivenEnergy.html)
-    let _update_contract = deployer
-        .update_contract(update_payload, Some(GivenEnergy::Add(energy)), None)
-        .await
-        .context("Failed to update the contract.")?; // Example
+    // // We add 100 energy to be safe.
+    // energy.energy += 100;
 
-    // Write your own deployment/initialization script above. An example is given
-    // here.
+    // // Send transaction
+    // let _update_contract = deployer
+    //     .update_contract(update_payload, Some(GivenEnergy::Add(energy)), None)
+    //     .await
+    //     .context("Failed to update the contract.")?;
 
     Ok(())
 }
